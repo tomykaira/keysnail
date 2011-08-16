@@ -3092,10 +3092,14 @@ var twitterClient =
         }
 
         function showFollowersStatus(arg) {
+            gPrompt.forced = true;
+            showLoadingMessage();
             showCrawlersCache(gStatuses, arg);
         }
 
         function showMentions(arg) {
+            gPrompt.forced = true;
+            showLoadingMessage();
             showCrawlersCache(gMentions, arg);
         }
 
