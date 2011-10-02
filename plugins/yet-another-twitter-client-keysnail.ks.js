@@ -2659,9 +2659,6 @@ var twitterClient =
                     modifyCache(status.id_str, function (status) {
                         status.favorited = !aDelete;
                     });
-
-                    if (prompt.refresh)
-                        prompt.refresh();
                 },
                 ng: function (res, xhr) {
                     display.echoStatusBar(errorMsg, 2000);
