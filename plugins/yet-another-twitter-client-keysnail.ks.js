@@ -1594,12 +1594,12 @@ var twitterClient =
             [function (status) {
                  if (status) tweet();
              }, M({ja: "つぶやく : ", en: ""}) + "Tweet",
-             "tweet"],
+             "tweet,c"],
             // ======================================== //
             [function (status) {
                  if (status) reply(status.screen_name, status.id_str);
              }, M({ja: "このつぶやき => 返信 : ", en: ""}) + "Send reply message",
-             "reply"],
+             "reply,c"],
             // ======================================== //
             [function (status) {
                  if (status)
@@ -1657,7 +1657,7 @@ var twitterClient =
             [function (status) {
                  if (status) sendDM(status.screen_name, status.id_str);
              }, M({ja: "このユーザ => ダイレクトメッセージ (DM) を送信 : ", en: ""}) + "Send Direct Message (DM)",
-             "send-direct-message"],
+             "send-direct-message,c"],
             // ======================================== //
             [function (status) {
                  if (status) showFavorites(status.user_id);
