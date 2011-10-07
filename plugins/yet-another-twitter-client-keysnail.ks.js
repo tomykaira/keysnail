@@ -480,7 +480,8 @@ let pOptions = plugins.setupOptions("twitter_client", {
         preset: true,
         description: M({ ja: "ユーザのタイムラインに公式RTを含めるかどうか",
                          en: "When set to either true, t or 1, user timelines will contain native retweets (if they exist) in addition to the standard stream of tweets."})
-    }
+    },
+   "editor": { preset: "/usr/bin/emacsclient" }
 }, PLUGIN_INFO);
 
 // ============================================================ //
@@ -2729,16 +2730,15 @@ var twitterClient =
 
         function reply(aUserID, aStatusID) {
             let init = "@" + aUserID + " ";
-            tweet(init, aStatusID, init.length);
+            tweet('reply', init, aStatusID, aUserID);
         }
 
         function sendDM(userID, statusID) {
-            let init = "d " + userID + " ";
-            tweet(init, statusID, init.length);
+            tweet("direct-message", '', null, userID);
         }
 
         function quoteTweet(aUserID, aMsg) {
-            tweet("RT @" + aUserID + ": " + aMsg);
+            tweet('organic-retweet', "RT @" + aUserID + ": " + aMsg);
         }
 
         function retweet(aID) {
@@ -2770,103 +2770,34 @@ var twitterClient =
             });
         }
 
-        function tweet(aInitialInput, aReplyID, aCursorEnd) {
+        function tweet(aType, aInitialInput, aReplyID, aUserName) {
             var limit = 140;
-            gPrompt.close();
+            var process = Components.classes["@mozilla.org/process/util;1"]
+                    .createInstance(Components.interfaces.nsIProcess);
+            var args       = pOptions['editor'].split(/\s+/);
+            var editorPath = args.shift();
+            var editorFile;
 
+            const UConv = Components.classes['@mozilla.org/intl/scriptableunicodeconverter'].getService(Components.interfaces.nsIScriptableUnicodeConverter);
+            UConv.charset = "UTF-8";
+            aInitialInput = UConv.ConvertFromUnicode(aInitialInput).replace(/\"/g, '\\"');
+
+            // mac is not supported. See K2Emacs - editfile
             try {
-                if (pOptions.show_screen_name_on_tweet)
-                    var promptMessage = util.format(
-                        "tweet (%s):",
-                        share.userInfo.screen_name
-                    );
-            } catch ([]) {}
+                editorFile = util.openFile(editorPath);
+            } catch (e) {
+                display.notify(util.getLocaleString("editorErrorOccurred"));
+                return;
+            }
 
-            if (!promptMessage)
-                promptMessage = "tweet:";
-
-            prompt.reader({
-                message      : promptMessage,
-                initialcount : 0,
-                initialinput : aInitialInput,
-                group        : "twitter_tweet",
-                keymap       : pOptions["tweet_keymap"],
-                completer    : completer.matcher.header(share.friendsCache || []),
-                cursorEnd    : aCursorEnd,
-                onChange     : function (arg) {
-                    var current = arg.textbox.value;
-
-                    // take t.co shorten into account
-                    // https://dev.twitter.com/blog/next-steps-with-the-tco-link-wrapper
-                    var regex  = /(?:https?\:\/\/|www\.)[^\s]+/g;
-                    var noURL  = current.replace(regex, "");
-                    var URLs   = current.match(regex);
-                    var length = noURL.length;
-
-                    if (URLs) {
-                        URLs.forEach(function (url) {
-                            if (url.match("https://")){
-                                length += 21;
-                            } else {
-                                length += 20;
-                            }
-                        });
-                    }
-
-                    var count   = limit - length;
-                    var msg     = M({ja: ("残り " + count + " 文字"), en: count});
-
-                    if (count < 0)
-                        msg = M({ja: ((-count) + " 文字オーバー"), en: ("Over " + (-count) + " characters")});
-
-                    display.echoStatusBar(msg);
-                },
-                callback: function postTweet(aTweet) {
-                    display.echoStatusBar("");
-
-                    if (aTweet === null)
-                        return;
-
-                    let params = { status : aTweet };
-
-                    if (aReplyID)
-                        params["in_reply_to_status_id"] = aReplyID.toString();
-
-                    function showPopupMayBe() {
-                        if (pOptions["popup_on_tweet"])
-                            showPopup.apply(this, arguments);
-                    }
-
-                    twitterAPI.request("statuses/update", {
-                        params: params,
-                        ok: function (res, xhr) {
-                            let status = $U.decodeJSON(res);
-
-                            let icon_url  = status.user.profile_image_url;
-                            let user_name = status.user.name;
-                            let message   = aTweet;
-
-                            showPopupMayBe({
-                                icon    : icon_url,
-                                title   : user_name,
-                                message : message
-                            });
-
-                            // immediately add
-                            if (gStatuses.cache)
-                                gStatuses.cache.unshift(status);
-                            share.twitterImmediatelyAddedStatuses.push(status);
-                        },
-                        ng: function (res, xhr) {
-                            showPopupMayBe({
-                                title   : M({ja: "ごめんなさい", en: "I'm sorry..."}),
-                                message : M({ja: "つぶやけませんでした",
-                                             en: "Failed to tweet"}) + " (" + xhr.status + ")"
-                            });
-                        }
-                    });
-                }
-            });
+            process.init(editorFile);
+            args.push('-e');
+            args.push('(twittering-update-status "'+aInitialInput+'" '
+                      + (aType == 'reply' ? '"'+aReplyID+'"' : 'nil') + ' '
+                      + (aUserName && (aType == 'reply' || aType == 'direct-message') ? '"'+aUserName+'"' : 'nil') + ' '
+                      + '\'' + aType + ')');
+            log(LOG_LEVEL_DEBUG, args);
+            process.run(false, args, args.length);
         }
 
         function deleteStatus(aStatusID) {
@@ -3731,7 +3662,7 @@ var twitterClient =
 
             tweetWithTitleAndURL: function (ev, arg) {
                 $U.shortenURL(window.content.location.href, function (url) {
-                    tweet((arg ? "" : '"' + content.document.title + '" - ') + url);
+                    tweet('normal', (arg ? "" : '"' + content.document.title + '" - ') + url);
                 });
             },
 
